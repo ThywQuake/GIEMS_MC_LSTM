@@ -4,7 +4,7 @@ import torch
 from statsmodels.tsa.ar_model import AutoReg
 
 from utils.dataset import WetlandDataset
-from utils.model import LSTMNetKAN, device
+from utils.model import LSTMNetKAN
 
 class Predict:
     def __init__(
@@ -16,6 +16,7 @@ class Predict:
         end_date: str,
         model: LSTMNetKAN,
         save_path: str,
+        device: torch.device,
         batch_size: int = 64,
     ):
         """
@@ -26,11 +27,12 @@ class Predict:
             start_date (str): The start date for the prediction period.
             end_date (str): The end date for the prediction period. 
             model (LSTMNetKAN): The model to be used for predictions.
+            device (torch.device): Device to run the prediction on. 
             save_path (str): The path where predictions will be saved.
         """
         self.lat_idx, self.lon_idx = lat_idx, lon_idx
         self.save_path = save_path
-        
+        self.device = device
         self.dataset = dataset
         self.start_date = start_date
         self.end_date = end_date
@@ -48,7 +50,7 @@ class Predict:
         predictions = []
         with torch.no_grad():
             for i in range(0, len(windows), self.batch_size):
-                batch = torch.tensor(windows[i:i+self.batch_size], dtype=torch.float32).to(device)
+                batch = torch.tensor(windows[i:i+self.batch_size], dtype=torch.float32).to(self.device)
                 h = self.model.init_hidden(batch.size(0))
                 output, _ = self.model(batch, h)
                 pred = output.detach().cpu().numpy().reshape(-1)

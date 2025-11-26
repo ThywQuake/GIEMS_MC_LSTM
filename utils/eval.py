@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 
-from utils.model import LSTMNetKAN, device
+from utils.model import LSTMNetKAN
 from utils.dataset import WetlandDataset
 
 
@@ -19,6 +19,7 @@ class Eval:
         dataset: WetlandDataset,
         eval_folder: str,
         model_folder: str,
+        device: torch.device,
         lats: np.ndarray,
         lons: np.ndarray,
     ):
@@ -33,6 +34,7 @@ class Eval:
             dataset (WetlandDataset_Loc): The dataset used for evaluation.
             eval_folder (str): Folder path to save evaluation results.
             model_folder (str): Folder path where the trained model is saved.
+            device (torch.device): Device to run the evaluation on.
             lats (np.ndarray): Array of latitude indices for the locations.
             lons (np.ndarray): Array of longitude indices for the locations.
         """
@@ -45,6 +47,7 @@ class Eval:
         self.model_folder = model_folder
         self.lats = lats
         self.lons = lons
+        self.device = device
 
     def run(self):
         if not os.path.exists(self.eval_folder):
@@ -58,7 +61,7 @@ class Eval:
                     continue
                 print(f"Processing location ({lat}, {lon})...")
 
-                self.model.load_state_dict(torch.load(model_path, map_location=device))
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
                 self.eval()
 
                 eval_path = os.path.join(self.eval_folder, f"{lat}_{lon}.npy")
@@ -135,8 +138,8 @@ class Eval:
 
         with torch.no_grad():
             for inputs, targets in self.train_loader:
-                inputs = inputs.to(device).float()
-                targets = targets.to(device).float()
+                inputs = inputs.to(self.device).float()
+                targets = targets.to(self.device).float()
 
                 h = self.model.init_hidden(inputs.size(0))
                 outputs, h = self.model(inputs, h)
@@ -144,8 +147,8 @@ class Eval:
                 Y["y_true_train"].append(targets.cpu().numpy().reshape(-1))
 
             for inputs, targets in self.test_loader:
-                inputs = inputs.to(device).float()
-                targets = targets.to(device).float()
+                inputs = inputs.to(self.device).float()
+                targets = targets.to(self.device).float()
 
                 h = self.model.init_hidden(inputs.size(0))
                 outputs, h = self.model(inputs, h)
