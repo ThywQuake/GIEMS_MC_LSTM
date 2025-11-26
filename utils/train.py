@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from typing import Literal
 
-from utils.model import LSTMNet, GRUNet, LSTMNetKAN, GRUNetKAN, device
+from utils.model import LSTMNet, GRUNet, LSTMNetKAN, GRUNetKAN 
 
 
 class Train:
@@ -20,6 +20,7 @@ class Train:
         n_epochs: int,
         model_type: Literal['GRU', 'LSTM', 'GRU_KAN', 'LSTM_KAN'],
         verbose_epoch: int,
+        device: torch.device,
         patience: int,
     ):
         """
@@ -84,7 +85,7 @@ class Train:
             case _:
                 raise ValueError(f"Unsupported model type: {self.model_type}")
             
-        model.to(device)
+        model.to(self.device)
         self.model = model
         
     def learning_setup(self):
@@ -141,12 +142,12 @@ class Train:
         return True
     
     def train_phase(self, inputs, targets):
-        inputs = inputs.to(device).float()
-        targets = targets.to(device).float()
+        inputs = inputs.to(self.device).float()
+        targets = targets.to(self.device).float()
         
         h = self.model.init_hidden(inputs.size(0))
         if self.model_type in ['LSTM', 'LSTM_KAN']:
-            h = tuple([each.data.to(device) for each in h])
+            h = tuple([each.data.to(self.device) for each in h])
         else:
             h = h.data 
             
@@ -160,12 +161,12 @@ class Train:
         return loss
     
     def eval_phase(self, inputs, targets):
-        inputs = inputs.to(device).float()
-        targets = targets.to(device).float()
+        inputs = inputs.to(self.device).float()
+        targets = targets.to(self.device).float()
         
         h = self.model.init_hidden(inputs.size(0))
         if self.model_type in ['LSTM', 'LSTM_KAN']:
-            h = tuple([each.data.to(device) for each in h])
+            h = tuple([each.data.to(self.device) for each in h])
         else:
             h = h.data 
             
