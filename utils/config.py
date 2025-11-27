@@ -55,7 +55,7 @@ class Config:
         self.train_years = training_cfg['train_years']
         
     def load_prediction_config(self):
-        prediction_cfg = self.config['prediction']
+        prediction_cfg = self.config['predict']
         self.start_date = prediction_cfg['start_date']
         self.end_date = prediction_cfg['end_date']
         
@@ -69,4 +69,4 @@ class Config:
             self.tasks_per_thread = sys_mode_cfg['predict_tasks_per_thread']
 
 if __name__ == "__main__":
-    config = Config("config/E.toml", mode='train')
+    config = Config("config/E.toml", mode='predict')

@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 
 print("Loading data...")
 config = Config(
-    config_path="config/E.toml",
+    config_path="config/E_debug.toml",
     mode="predict"
 )
 TVARs = config.TVARs
@@ -39,7 +39,6 @@ end_task = min((int(temporary_thread) + 1) * tasks_per_thread, total_tasks)
 
 hidden_dim = config.hidden_dim
 n_layers = config.n_layers
-n_epochs = config.n_epochs
 batch_size = config.batch_size
 seq_length = config.seq_length
 window_size = config.window_size
