@@ -108,3 +108,7 @@ for lat_idx in range(mask.shape[0]):
         )
 
         pred.run()
+    else:
+        continue
+    break    
+    
