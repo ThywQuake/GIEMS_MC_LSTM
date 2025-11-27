@@ -186,7 +186,10 @@ if __name__ == "__main__":
     # 设置并行数
     # 如果是 CPU 训练，可以设为 cpu_count()
     # 如果是 GPU 训练，建议设为 1 或 2，否则显存爆炸
-    num_processes = min(multiprocessing.cpu_count(), 16)
+    if device_str == "cpu":
+        num_processes = multiprocessing.cpu_count()
+    else:
+        num_processes = min(multiprocessing.cpu_count(), 2)
 
     if len(task_list) > 0:
         print(f"Starting Pool with {num_processes} processes...")
