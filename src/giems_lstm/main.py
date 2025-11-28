@@ -393,7 +393,7 @@ def predict(
     if parallel > 1:
         temp_cfg = Config(config_path, mode="predict")
         # Note: Ensure the method to get mask total is consistent
-        total_tasks = temp_cfg.mask.sum()  # Or get from config
+        total_tasks = int(np.sum(temp_cfg.mask))  # Or get from config
         tasks_per_thread = temp_cfg.sys.tasks_per_thread
         num_chunks = (total_tasks + tasks_per_thread - 1) // tasks_per_thread
 

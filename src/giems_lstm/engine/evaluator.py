@@ -136,7 +136,7 @@ class Evaluator:
         # Run the core evaluation steps
         self._run_inference()
         self._inverse_transform_results()
-        self._calculate_all_metrics()
+        self._calculate_metrics()
 
         # Save results to disk
         self._save_results()
