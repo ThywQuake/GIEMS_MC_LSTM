@@ -1,30 +1,10 @@
 import typer
 import os
 import sys
-import torch
-import numpy as np
 import random
 import multiprocessing as mp
 from pathlib import Path
 from functools import partial
-
-# Make sure the project root is in sys.path for imports
-# Assuming this script is located at src/giems_lstm/main.py
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-
-# Import project modules
-from giems_lstm.config import Config
-from giems_lstm.data import (
-    WetlandDataset,
-    wetland_dataloader,
-    fit_scalers,
-    transform_features,
-    transform_target,
-    extract_window_data,
-)
-from giems_lstm.engine import Trainer, Evaluator, Predictor
-from giems_lstm.model import LSTMNetKAN
-
 
 app = typer.Typer(help="GIEMS-LSTM Training and Prediction CLI")
 
@@ -33,6 +13,10 @@ def seed_everything(seed: int):
     """
     Set random seeds for reproducibility across python, numpy, and torch.
     """
+
+    import torch
+    import numpy as np
+
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
@@ -52,6 +36,22 @@ def train_chunk(thread_id: int, config_path: str, debug: bool, seed: int):
     """
     Process a single chunk of training tasks (core logic from training.py)
     """
+    import torch
+    import numpy as np
+
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    from giems_lstm.config import Config
+    from giems_lstm.data import (
+        WetlandDataset,
+        wetland_dataloader,
+        fit_scalers,
+        transform_features,
+        transform_target,
+        extract_window_data,
+    )
+    from giems_lstm.engine import Trainer, Evaluator
+    from giems_lstm.model import LSTMNetKAN
+
     # Set seed for this worker process
     seed_everything(seed)
 
@@ -204,6 +204,19 @@ def predict_chunk(thread_id: int, config_path: str, debug: bool, seed: int):
     """
     Process a single chunk of prediction tasks (core logic from predicting.py)
     """
+    import torch
+
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    from giems_lstm.config import Config
+    from giems_lstm.data import (
+        WetlandDataset,
+        fit_scalers,
+        transform_features,
+        extract_window_data,
+    )
+    from giems_lstm.engine import Predictor
+    from giems_lstm.model import LSTMNetKAN
+
     # Set seed for this worker process
     seed_everything(seed)
 
@@ -335,6 +348,9 @@ def train(
     """
     Run training pipeline.
     """
+    import numpy as np
+    from giems_lstm.config import Config
+
     # Set seed for the main process
     seed_everything(seed)
 
@@ -387,6 +403,9 @@ def predict(
     """
     Run prediction pipeline.
     """
+    import numpy as np
+    from giems_lstm.config import Config
+
     # Set seed for the main process
     seed_everything(seed)
 

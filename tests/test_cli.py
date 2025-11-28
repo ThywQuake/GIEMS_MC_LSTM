@@ -12,7 +12,7 @@ def mock_config():
     """
     Mocks the Config class to return controlled values for mask and sys settings.
     """
-    with patch("src.giems_lstm.main.Config") as MockConfig:
+    with patch("giems_lstm.config.Config") as MockConfig:
         config_instance = MockConfig.return_value
 
         # Setup mask for calculating chunks (total tasks)
