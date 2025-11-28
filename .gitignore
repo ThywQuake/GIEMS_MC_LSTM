@@ -16,4 +16,3 @@ wheels/
 /.ruff_cache/
 /.pytest_cache/
 /.github/
-/old/

@@ -43,7 +43,9 @@ class SysConfig:
 
 
 class Config:
-    def __init__(self, config_path: str, mode: Literal["train", "predict"] = "train"):
+    def __init__(
+        self, config_path: str, mode: Literal["train", "predict", "analyze"] = "train"
+    ):
         self.config_path = Path(config_path)
         # Assuming config is located at config/E.toml, moving up two levels gets to the project root
         self.project_root = self.config_path.parent.parent
@@ -89,7 +91,17 @@ class Config:
                 train_start_date=train_cfg.get("start_date"),
                 train_end_date=train_cfg.get("end_date"),
             )
-
+        elif self.mode == "analyze":
+            # In analyze mode, we might have everything from train and predict
+            self.train = TrainConfig(**self._raw_config["train"])
+            pred_cfg = self._raw_config["predict"]
+            train_cfg = self._raw_config.get("train", {})
+            self.predict = PredictConfig(
+                start_date=pred_cfg["start_date"],
+                end_date=pred_cfg["end_date"],
+                train_start_date=train_cfg.get("start_date"),
+                train_end_date=train_cfg.get("end_date"),
+            )
         # Sys Mode
         sys_cfg = self._raw_config["sys_mode"]
         tasks = (
