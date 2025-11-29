@@ -333,6 +333,13 @@ def train(
     if debug:
         logger.warning("!!! DEBUG MODE ENABLED !!!")
 
+    if parallel >= 1:
+        num_workers = mp.cpu_count() // parallel
+        logger.warning(
+            f"Spawning {parallel} local processes with {num_workers} workers each."
+        )
+        torch.set_num_threads(num_workers)
+
     # Set seed for the main process
     _seed_everything(seed)
     _train(thread_id, config_path, debug, parallel)
@@ -360,6 +367,13 @@ def predict(
     logger = logging.getLogger()
     if debug:
         logger.warning("!!! DEBUG MODE ENABLED !!!")
+
+    if parallel >= 1:
+        num_workers = mp.cpu_count() // parallel
+        logger.warning(
+            f"Spawning {parallel} local processes with {num_workers} workers each."
+        )
+        torch.set_num_threads(num_workers)
 
     # Set seed for the main process
     _seed_everything(seed)
