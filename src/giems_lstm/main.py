@@ -495,7 +495,10 @@ def collect(
             else:
                 files_missing += 1
 
-    print(f"Found {files_found} result files, {files_missing} missing.")
+    if files_missing > 0:
+        print(f"Found {files_found} result files, {files_missing} missing.")
+    else:
+        print(f"Found {files_found} result files.")
 
     if files_found == 0:
         print("No result files found. Nothing to collect.")
