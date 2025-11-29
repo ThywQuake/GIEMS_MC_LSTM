@@ -34,7 +34,25 @@ app = typer.Typer(help="GIEMS-LSTM Training and Prediction CLI")
 
 
 def _init_imports():
-    pass
+    # ruff: noqa: F401
+    import torch
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from pathlib import Path
+
+    from giems_lstm.data import (
+        extract_window_data,
+        fit_scalers,
+        transform_features,
+        transform_target,
+        WetlandDataset,
+        wetland_dataloader,
+    )
+    from giems_lstm.engine import Trainer, Evaluator, Predictor
+    from giems_lstm.config import Config
+    from giems_lstm.model import LSTMNetKAN
 
 
 def setup_global_logging(debug: bool, process_type: str):
