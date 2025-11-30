@@ -13,8 +13,8 @@ def fit_scalers(
     Fit MinMaxScalers for features and target variable.
 
     Args:
-        raw_features: Original feature matrix [T, D]
         raw_target: Original target vector [T, 1]
+        raw_features: Original feature matrix [T, D]
         feature_names: List of feature names to distinguish feature columns (optional but recommended)
 
     Returns:

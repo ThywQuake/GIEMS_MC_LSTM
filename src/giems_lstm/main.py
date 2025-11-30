@@ -131,7 +131,7 @@ def _train_task(
     logger.info(f"[Thread {thread_id}] Training {lat_idx}, {lon_idx}")
 
     # Construct Dataset
-    features, target, dates = extract_window_data(
+    target, features, dates = extract_window_data(
         lat_idx,
         lon_idx,
         config.TVARs,
@@ -143,8 +143,8 @@ def _train_task(
     target_scaler, feature_scalers = fit_scalers(
         raw_target=target, raw_features=features
     )
-    features_scaled = transform_features(features, feature_scalers)
     target_scaled = transform_target(target, target_scaler)
+    features_scaled = transform_features(features, feature_scalers)
 
     dataset = WetlandDataset(
         features_scaled=features_scaled,
@@ -183,6 +183,8 @@ def _train_task(
             lat_idx=lat_idx,
             lon_idx=lon_idx,
             model=trainer.model,
+            eval_folder=config.eval_folder,
+            target_scaler=target_scaler,
             device=device,
             debug=config.sys.debug,
         )
@@ -230,7 +232,7 @@ def _train(thread_id: int, config_path: str, debug: bool, para: int):
         for lat_idx, lon_idx in train_coords:
             train_t((lat_idx, lon_idx))
     else:
-        with mp.Pool(processes=para) as pool:
+        with mp.Pool(processes=para, initializer=_init_imports) as pool:
             pool.map(train_t, train_coords)
 
 
@@ -242,7 +244,7 @@ def _predict_task(
     lat_idx, lon_idx = coord
     logger.info(f"[Thread {thread_id}] Predicting {lat_idx}, {lon_idx}")
 
-    train_features, train_target, _ = extract_window_data(
+    train_target, train_features, _ = extract_window_data(
         lat_idx,
         lon_idx,
         config.TVARs,
@@ -251,8 +253,8 @@ def _predict_task(
         config.predict.train_start_date,
         config.predict.train_end_date,
     )
-    feature_scalers, target_scaler = fit_scalers(train_features, train_target)
-    pred_features, _, pred_dates = extract_window_data(
+    target_scaler, feature_scalers = fit_scalers(train_target, train_features)
+    pred_target, pred_features, pred_dates = extract_window_data(
         lat_idx,
         lon_idx,
         config.TVARs,
@@ -336,7 +338,7 @@ def _predict(thread_id: int, config_path: str, debug: bool, para: int):
         for lat_idx, lon_idx in predict_coords:
             predict_t((lat_idx, lon_idx))
     else:
-        with mp.Pool(processes=para) as pool:
+        with mp.Pool(processes=para, initializer=_init_imports) as pool:
             pool.map(predict_t, predict_coords)
 
 
@@ -366,8 +368,8 @@ def _collect_batch(file_batch: list[str], zero_array: np.ndarray):
 
         try:
             # Load data
-            data = np.load(file_path)
-            zero_array[:, lat_idx, lon_idx] = data
+            data = np.load(file_path, allow_pickle=True)
+            zero_array[:, lat_idx, lon_idx] = data.item()["prediction"]
             count += 1
 
         except Exception as e:
@@ -411,14 +413,16 @@ def _collect(config_path: str, parallel: int):
             if not file_path.exists():
                 logger.warning(f"File {file_path} does not exist. Skipping.")
                 continue
-            data = np.load(file_path)
-            zero_array[:, lat, lon] = data.item()["prediction"]
+            data = np.load(file_path, allow_pickle=True).item()["prediction"]
+            zero_array[:, lat, lon] = data
     else:
         chunk_size = config.sys.tasks_per_thread
         batches = [files[i : i + chunk_size] for i in range(0, len(files), chunk_size)]
         total_loaded = 0
 
-        with ThreadPoolExecutor(max_workers=parallel) as executor:
+        with ThreadPoolExecutor(
+            max_workers=parallel, initializer=_init_imports
+        ) as executor:
             future_to_batch = {
                 executor.submit(_collect_batch, batch, zero_array): batch
                 for batch in batches
@@ -533,7 +537,7 @@ def collect(
         "config/F.toml", "--config", "-c", help="Path to config file"
     ),
     parallel: int = typer.Option(
-        4, "--parallel", "-p", help="Number of threads to use for collection."
+        0, "--parallel", "-p", help="Number of threads to use for collection."
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     seed: int = typer.Option(

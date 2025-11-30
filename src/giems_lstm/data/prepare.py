@@ -12,7 +12,7 @@ def extract_window_data(
     window_size: int,
     start_date: str,
     end_date: str,
-) -> Tuple[Dict[str, np.ndarray], np.ndarray, List[pd.Timestamp]]:
+) -> Tuple[np.ndarray, Dict[str, np.ndarray], List[pd.Timestamp]]:
     """
     Load raw data for a specific location and extract a spatial window
 
@@ -23,8 +23,8 @@ def extract_window_data(
         start_date, end_date: Time range.
 
     Returns:
-        (features: Dict[str, np.ndarray], target: np.ndarray, dates: List[pd.Timestamp]):
-        Raw (unscaled) feature matrix, target vector, and list of timestamps.
+        (target: np.ndarray, features: Dict[str, np.ndarray], dates: List[pd.Timestamp]):
+        Raw (unscaled) target vector, feature matrix, and list of timestamps.
     """
 
     window_radius = window_size // 2
@@ -83,4 +83,4 @@ def extract_window_data(
     features = {name: np.nan_to_num(data, nan=0.0) for name, data in features.items()}
     target = giems2_center.reshape(-1, 1)
 
-    return features, target, dates
+    return target, features, dates
