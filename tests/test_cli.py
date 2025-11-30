@@ -1,9 +1,9 @@
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-# Import the main Typer app
-# Ensure 'src' is in your PYTHONPATH if running tests locally without installing the package
+# Import the main module object so we can manually inject mocks
+import giems_lstm.main as main_module
 from giems_lstm.main import app
 
 # Initialize the CLI runner for Typer
@@ -14,20 +14,34 @@ runner = CliRunner()
 def mock_functions():
     """
     Fixture to mock the core logic functions in main.py.
-    This prevents actual training/prediction code from running during CLI testing.
+    We manually inject Mocks into the main module's namespace because
+    main.py uses lazy imports (via globals()), preventing standard patching.
     """
-    with (
-        patch("giems_lstm.main._train") as mock_train,
-        patch("giems_lstm.main._predict") as mock_predict,
-        patch("giems_lstm.main._collect") as mock_collect,
-        patch("giems_lstm.main._uniform_entry") as mock_entry,
-    ):
+    # 1. Create Mocks
+    mock_train = MagicMock()
+    mock_predict = MagicMock()
+    mock_collect = MagicMock()
+
+    # 2. Manually inject into module namespace
+    # This allows the CLI commands to call these names without error.
+    main_module._train = mock_train
+    main_module._predict = mock_predict
+    main_module._collect = mock_collect
+
+    # 3. Mock _uniform_entry
+    with patch("giems_lstm.main._uniform_entry") as mock_entry:
         yield {
             "train": mock_train,
             "predict": mock_predict,
             "collect": mock_collect,
             "entry": mock_entry,
         }
+
+    # 4. Cleanup (Teardown)
+    # Remove injected attributes to prevent side effects in other tests.
+    del main_module._train
+    del main_module._predict
+    del main_module._collect
 
 
 def test_app_help():
@@ -49,7 +63,6 @@ def test_train_command_defaults(mock_functions):
     result = runner.invoke(app, ["train"])
 
     assert result.exit_code == 0
-
     # Verify _uniform_entry is called with defaults (debug=False, parallel=0, seed=3407)
     mock_functions["entry"].assert_called_once_with(False, 0, 3407)
 
@@ -76,7 +89,6 @@ def test_train_command_custom_args(mock_functions):
     result = runner.invoke(app, args)
 
     assert result.exit_code == 0
-
     # Verify arguments are correctly passed to the entry point
     mock_functions["entry"].assert_called_once_with(True, 4, 12345)
 
@@ -91,7 +103,6 @@ def test_predict_command_defaults(mock_functions):
     result = runner.invoke(app, ["predict"])
 
     assert result.exit_code == 0
-
     mock_functions["entry"].assert_called_once_with(False, 0, 3407)
     # _predict(thread_id, config_path, debug, parallel)
     mock_functions["predict"].assert_called_once_with(0, "config/F.toml", False, 0)
@@ -99,13 +110,12 @@ def test_predict_command_defaults(mock_functions):
 
 def test_predict_command_custom_args(mock_functions):
     """
-    Test the 'predict' command with custom arguments using short flags.
+    Test the 'predict' command with custom arguments.
     """
     args = ["predict", "-c", "config/pred.toml", "-t", "2", "-p", "8", "-d", "-s", "42"]
     result = runner.invoke(app, args)
 
     assert result.exit_code == 0
-
     mock_functions["entry"].assert_called_once_with(True, 8, 42)
     mock_functions["predict"].assert_called_once_with(2, "config/pred.toml", True, 8)
 
@@ -117,14 +127,9 @@ def test_collect_command_defaults(mock_functions):
     result = runner.invoke(app, ["collect"])
 
     assert result.exit_code == 0
-
-    # collect command has default parallel=0 in CLI definition, but note that
-    # some logic might use a default if passed 0. Here we check strictly what CLI passes.
-    # Based on the uploaded file, the default parallel for collect is 0 in main.py.
+    # collect default parallel is 0
     mock_functions["entry"].assert_called_once_with(False, 0, 3407)
-
     # _collect(config_path, eval, parallel)
-    # The default for eval is False
     mock_functions["collect"].assert_called_once_with("config/F.toml", False, 0)
 
 
@@ -140,51 +145,62 @@ def test_collect_command_custom_args(mock_functions):
         "16",
         "--seed",
         "999",
-        "--eval",
+        "--eval",  # flag, implies True
     ]
     result = runner.invoke(app, args)
 
     assert result.exit_code == 0
-
     mock_functions["entry"].assert_called_once_with(False, 16, 999)
-    # Check that eval is passed as True
     mock_functions["collect"].assert_called_once_with("config/analysis.toml", True, 16)
 
 
 def test_invalid_argument():
-    """
-    Test that providing an invalid argument results in a failure.
-    """
+    """Test that providing an invalid argument results in a failure."""
     result = runner.invoke(app, ["train", "--invalid-arg", "123"])
-
     assert result.exit_code != 0
-    # Check .output (stdout + stderr) for the error message
     assert "No such option" in result.output
 
 
 def test_entry_point_logic_with_parallel_check():
     """
-    Test the internal logic of _uniform_entry function, specifically how it handles
-    logging setup and multiprocessing initialization.
+    Test the internal logic of _uniform_entry function, checking parallel settings.
+    We mock the dependencies (like torch and utility functions) by injecting
+    them into the main module's namespace and patching _init_imports.
     """
     from giems_lstm.main import _uniform_entry
 
+    # 1. Prepare mocks for external dependencies used globally in _uniform_entry
+    mock_torch = MagicMock()
+    mock_torch.set_num_threads = MagicMock()
+    mock_logging_util = MagicMock()
+    mock_seed_util = MagicMock()
+
     with (
-        patch("giems_lstm.main._setup_global_logging") as mock_logging,
-        patch("giems_lstm.main._seed_everything") as mock_seed,
+        # 2. Patch the global variables *before* the function runs
+        # Use patch.object to temporarily replace attributes in the main module
+        patch.object(main_module, "torch", mock_torch),
+        patch.object(main_module, "_setup_global_logging", mock_logging_util),
+        patch.object(main_module, "_seed_everything", mock_seed_util),
+        # 3. Patch _init_imports to prevent it from overwriting our mocks with real imports
+        patch.object(main_module, "_init_imports", MagicMock()),
+        # 4. Patch system calls
         patch("multiprocessing.cpu_count", return_value=8),
-        patch("torch.set_num_threads") as mock_torch_threads,
     ):
-        # Case 1: parallel=0 (Standard single process, no specific mp setup)
+        # Case 1: parallel=0 (Standard single process)
         _uniform_entry(debug=False, parallel=0, seed=123)
-        mock_logging.assert_called_with(False, "Main")
-        mock_seed.assert_called_with(123)
-        mock_torch_threads.assert_not_called()
+        mock_logging_util.assert_called_with(False, "Main")
+        mock_seed_util.assert_called_with(123)
+        mock_torch.set_num_threads.assert_not_called()
+
+        # Reset mocks for Case 2
+        mock_logging_util.reset_mock()
+        mock_seed_util.reset_mock()
+        mock_torch.set_num_threads.reset_mock()
 
         # Case 2: parallel=4 (Parallel mode enabled)
         # Logic: num_workers = cpu_count // parallel = 8 // 4 = 2
         _uniform_entry(debug=True, parallel=4, seed=456)
-        mock_logging.assert_called_with(True, "Main")
-        mock_seed.assert_called_with(456)
-        # Ensure torch threads are set based on the calculation
-        mock_torch_threads.assert_called_with(2)
+        mock_logging_util.assert_called_with(True, "Main")
+        mock_seed_util.assert_called_with(456)
+        # Assert that the mocked torch method was called with the calculated workers
+        mock_torch.set_num_threads.assert_called_with(2)

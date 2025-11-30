@@ -1,15 +1,18 @@
 import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from src.giems_lstm.engine.trainer import Trainer
-from src.giems_lstm.model.lstm import LSTMNet
-from src.giems_lstm.model.lstmkan import LSTMNetKAN
+
+# Import components from the correct package structure
+from giems_lstm.engine.trainer import Trainer
+from giems_lstm.model.lstm import LSTMNet
+from giems_lstm.model.lstmkan import LSTMNetKAN
 
 
 @pytest.fixture
 def mock_data():
     """
-    Creates mock training and testing data loaders.
+    Creates mock training and testing data loaders using TensorDataset.
+    Data is randomized and shaped for LSTM training: [Batch, Sequence, Feature].
     """
     # Parameters for mock data
     num_samples = 20
@@ -19,7 +22,6 @@ def mock_data():
     batch_size = 4
 
     # Create random features and targets
-    # Features: [Batch, Seq, Dim]
     train_features = torch.randn(num_samples, seq_length, input_dim)
     train_targets = torch.randn(num_samples, output_dim)
 
@@ -40,14 +42,15 @@ def mock_data():
 @pytest.fixture
 def device():
     """
-    Use CUDA if available, else CPU.
+    Determines the appropriate device for model testing (CUDA if available, else CPU).
     """
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def test_trainer_initialization(mock_data, device):
     """
-    Test that the Trainer initializes with correct attributes.
+    Test that the Trainer initializes with correct attributes, including
+    checking the debug mode epoch override (n_epochs is set to 10 in debug mode).
     """
     train_loader, test_loader = mock_data
 
@@ -57,7 +60,7 @@ def test_trainer_initialization(mock_data, device):
         learn_rate=0.001,
         hidden_dim=16,
         n_layers=1,
-        n_epochs=2,
+        n_epochs=2,  # This value should be overridden by debug=True
         model_type="LSTM",
         verbose_epoch=1,
         patience=5,
@@ -68,26 +71,25 @@ def test_trainer_initialization(mock_data, device):
     assert trainer.learn_rate == 0.001
     assert trainer.hidden_dim == 16
     assert trainer.model_type == "LSTM"
-    # In debug mode, n_epochs is forced to 10 in the __init__ provided in source
-    # We check if it adheres to the logic in the source code
+    # Check that debug mode overrides n_epochs
     assert trainer.n_epochs == 10
     assert trainer.device == device
 
 
 def test_trainer_run_lstm(mock_data, device):
     """
-    Test a complete training run with the LSTM model.
+    Test a complete training run using the base LSTM model and check results.
     """
     train_loader, test_loader = mock_data
 
-    # Use a small number of epochs for speed
+    # Use a small number of epochs (1) for rapid testing
     trainer = Trainer(
         train_loader=train_loader,
         test_loader=test_loader,
         learn_rate=0.01,
         hidden_dim=8,
         n_layers=1,
-        n_epochs=1,  # Set to 1, but debug=False to respect this value
+        n_epochs=1,
         model_type="LSTM",
         verbose_epoch=1,
         patience=2,
@@ -97,19 +99,17 @@ def test_trainer_run_lstm(mock_data, device):
 
     model = trainer.run()
 
-    # Check that a model was returned and is of correct type
+    # Check the returned model instance
     assert isinstance(model, LSTMNet)
-    # Check that model is on the correct device
     assert next(model.parameters()).device.type == device.type
-    # Check that best_loss was updated from infinity
+    # Check that the training successfully updated the best loss
     assert trainer.best_loss < float("inf")
-    # Check that best_model_state is saved
     assert trainer.best_model_state is not None
 
 
 def test_trainer_run_lstm_kan(mock_data, device):
     """
-    Test a complete training run with the LSTM-KAN model.
+    Test a complete training run using the LSTM-KAN model variant.
     """
     train_loader, test_loader = mock_data
 
@@ -129,13 +129,14 @@ def test_trainer_run_lstm_kan(mock_data, device):
 
     model = trainer.run()
 
+    # Check the returned model instance
     assert isinstance(model, LSTMNetKAN)
     assert trainer.best_loss < float("inf")
 
 
 def test_early_stopping_logic(mock_data, device):
     """
-    Test the early stopping mechanism directly.
+    Test the internal mechanism of the early stopping logic (patience counter).
     """
     train_loader, test_loader = mock_data
 
@@ -148,37 +149,35 @@ def test_early_stopping_logic(mock_data, device):
         n_epochs=10,
         model_type="LSTM",
         verbose_epoch=1,
-        patience=2,  # Early stopping after 2 epochs of no improvement
+        patience=2,  # Stop after 2 epochs with no improvement
         device=device,
         debug=False,
     )
 
-    # Manually setup model and learning for the internal state
+    # Manually call setup to initialize the model and internal state
     trainer._model_setup()
 
-    # 1. First epoch: Loss 0.5 (Improvement over inf)
+    # 1. First check: Loss 0.5 (Improvement over infinity)
     should_continue = trainer._check_early_stopping(0.5)
     assert should_continue is True
     assert trainer.best_loss == 0.5
     assert trainer.epochs_no_improve == 0
 
-    # 2. Second epoch: Loss 0.6 (No improvement)
+    # 2. Second check: Loss 0.6 (No improvement)
     should_continue = trainer._check_early_stopping(0.6)
     assert should_continue is True
-    assert trainer.best_loss == 0.5  # Remains 0.5
+    assert trainer.best_loss == 0.5  # Best loss remains the same
     assert trainer.epochs_no_improve == 1
 
-    # 3. Third epoch: Loss 0.7 (No improvement - Hit patience limit of 2)
-    # Note: logic is if epochs_no_improve >= patience -> return False
-    # Here epochs_no_improve becomes 2.
+    # 3. Third check: Loss 0.7 (No improvement - hits patience limit)
     should_continue = trainer._check_early_stopping(0.7)
-    assert should_continue is False  # Should stop
+    assert should_continue is False  # Should trigger stop
     assert trainer.epochs_no_improve == 2
 
 
 def test_invalid_model_type(mock_data, device):
     """
-    Test that passing an invalid model type raises a ValueError.
+    Test that passing an unsupported model type raises a ValueError.
     """
     train_loader, test_loader = mock_data
 

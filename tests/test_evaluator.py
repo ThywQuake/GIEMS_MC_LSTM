@@ -5,14 +5,17 @@ import os
 import tempfile
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import MinMaxScaler
-from src.giems_lstm.engine.evaluator import Evaluator, sMAPE, nse
-from src.giems_lstm.model.lstm import LSTMNet
+
+# Import components from the correct package structure
+from giems_lstm.engine.evaluator import Evaluator, sMAPE, nse
+from giems_lstm.model.lstm import LSTMNet
 
 
 # --- Metric Tests ---
 
 
 def test_smape_perfect_match():
+    """Test sMAPE for perfect prediction."""
     y_true = np.array([10.0, 20.0, 30.0])
     y_pred = np.array([10.0, 20.0, 30.0])
     # Perfect match -> sMAPE = 0
@@ -20,27 +23,27 @@ def test_smape_perfect_match():
 
 
 def test_smape_deviation():
+    """Test sMAPE for a known deviation."""
     y_true = np.array([10.0])
     y_pred = np.array([20.0])
-    # |10-20| / (|10|+|20|)/2 = 10 / 15 = 2/3
-    # 100 * 2/3 = 66.666...
+    # Calculation: 100 * |10-20| / ((|10|+|20|)/2) = 100 * 10 / 15 = 66.666...
     assert pytest.approx(sMAPE(y_true, y_pred), 0.01) == 66.67
 
 
 def test_nse_perfect_match():
+    """Test Nash-Sutcliffe Efficiency (NSE) for perfect prediction."""
     y_true = np.array([10.0, 20.0, 30.0])
     y_pred = np.array([10.0, 20.0, 30.0])
-    # Numerator = sum((y - y_pred)^2) = 0
-    # NSE = 1 - 0 = 1
+    # NSE = 1 - (0 / Denominator) = 1
     assert nse(y_true, y_pred) == 1.0
 
 
 def test_nse_mean_prediction():
+    """Test NSE when prediction equals the mean of true values."""
     y_true = np.array([10.0, 20.0, 30.0])
+    # Mean of y_true is 20.0
     y_pred = np.array([20.0, 20.0, 20.0])
-    # Numerator = sum((y - mean)^2)
-    # Denominator = sum((y - mean)^2)
-    # NSE = 1 - 1 = 0
+    # Numerator = Denominator, so NSE = 1 - 1 = 0
     assert nse(y_true, y_pred) == 0.0
 
 
@@ -49,6 +52,9 @@ def test_nse_mean_prediction():
 
 @pytest.fixture
 def mock_setup():
+    """
+    Sets up a mock LSTM model, DataLoader, and Scaler for Evaluator testing.
+    """
     # 1. Create Mock Data
     input_dim = 2
     output_dim = 1
@@ -57,6 +63,7 @@ def mock_setup():
     num_samples = 10
 
     # Create random features and targets
+    # X: [Batch, Seq, Dim], y: [Batch, Output_Dim]
     X = torch.randn(num_samples, seq_length, input_dim)
     y = torch.randn(num_samples, output_dim)
 
@@ -65,21 +72,21 @@ def mock_setup():
 
     # 2. Create Mock Model
     device = torch.device("cpu")
+    # LSTMNet(input_dim, hidden_dim, output_dim, n_layers, device)
     model = LSTMNet(input_dim, 10, output_dim, 1, device)
-
-    # Initialize weights to avoid randomness affecting shape tests too much
-    for p in model.parameters():
-        torch.nn.init.constant_(p, 0.1)
 
     # 3. Create Mock Scaler
     scaler = MinMaxScaler()
-    # Fit scaler on dummy data so it's initialized
+    # Fit scaler on dummy data so it's initialized for inverse_transform
     scaler.fit(np.array([[0], [100]]))
 
     return model, dataloader, scaler, device
 
 
 def test_evaluator_inference_and_saving(mock_setup):
+    """
+    Test the full run of the evaluator, ensuring inference occurs and results are saved correctly.
+    """
     model, dataloader, scaler, device = mock_setup
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -102,7 +109,7 @@ def test_evaluator_inference_and_saving(mock_setup):
             model_folder=model_folder,
             target_scaler=scaler,
             device=device,
-            debug=True,
+            debug=True,  # Enable debug mode
         )
 
         evaluator.run()
@@ -134,6 +141,10 @@ def test_evaluator_inference_and_saving(mock_setup):
 
 
 def test_evaluator_skips_if_exists(mock_setup, caplog):
+    """
+    Test that the evaluator skips the run if the result file already exists
+    and debug mode is False.
+    """
     model, dataloader, scaler, device = mock_setup
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -159,7 +170,7 @@ def test_evaluator_skips_if_exists(mock_setup, caplog):
             debug=False,  # debug=False enables the check
         )
 
-        # Run evaluator
+        # Run evaluator and capture logs
         with caplog.at_level("INFO"):
             evaluator.run()
 
@@ -168,12 +179,15 @@ def test_evaluator_skips_if_exists(mock_setup, caplog):
 
 
 def test_evaluator_missing_model(mock_setup, caplog):
+    """
+    Test that the evaluator handles the case where the model checkpoint is missing.
+    """
     model, dataloader, scaler, device = mock_setup
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         eval_folder = os.path.join(tmp_dir, "eval")
         model_folder = os.path.join(tmp_dir, "models")
-        # model_folder is empty, no .pth file
+        # model_folder is created but intentionally left empty, so the .pth file is missing
 
         evaluator = Evaluator(
             model=model,
@@ -185,11 +199,13 @@ def test_evaluator_missing_model(mock_setup, caplog):
             model_folder=model_folder,
             target_scaler=scaler,
             device=device,
+            debug=False,
         )
 
         with caplog.at_level("WARNING"):
             evaluator.run()
 
+        # Check logs for warning message
         assert "not found" in caplog.text
         # Result file should NOT be created
         result_file = os.path.join(eval_folder, "2_2.npy")

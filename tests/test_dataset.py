@@ -2,7 +2,9 @@ import pytest
 import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
-from src.giems_lstm.data.dataset import WetlandDataset, wetland_dataloader
+
+# Import components from the correct package structure
+from giems_lstm.data.dataset import WetlandDataset, wetland_dataloader
 
 
 @pytest.fixture
@@ -65,20 +67,13 @@ def test_create_windows_training(synthetic_data):
     )
 
     # Expected number of windows:
-    # Total possible windows = num_samples - seq_length + 1
-    # We introduced 2 NaNs in the target.
-    # Logic: if np.isnan(target[target_index]).any() -> continue
-    # target_index is the last index of the window.
-    # The NaN indices are 10 and 20.
-    # If a window ends at index 10 or 20, it should be skipped.
-
-    total_windows = synthetic_data["num_samples"] - seq_length + 1
-    # Both index 10 and 20 are >= seq_length-1 (4), so they are reachable as window ends
-    expected_len = total_windows - 2
+    # Total possible windows = num_samples (50) - seq_length (5) + 1 = 46
+    # NaNs are at index 10 and 20 (target index, which is the window end)
+    expected_len = (synthetic_data["num_samples"] - seq_length + 1) - 2
 
     assert len(dataset) == expected_len
 
-    # Check item structure
+    # Check item structure and shapes
     item = dataset[0]
     assert isinstance(item, tuple)
     assert len(item) == 2
@@ -92,10 +87,10 @@ def test_create_windows_training(synthetic_data):
 def test_create_windows_predict_mode(synthetic_data):
     """
     Test window creation in prediction mode.
-    Should return only feature windows and NOT skip based on target (target can be None).
+    Should return only feature windows and NOT skip based on target.
     """
     seq_length = synthetic_data["seq_length"]
-    # Pass None as target to ensure it works without it
+    # Pass None as target to match prediction mode requirements
     dataset = WetlandDataset(
         features_scaled=synthetic_data["features"],
         dates=synthetic_data["dates"],
@@ -104,18 +99,19 @@ def test_create_windows_predict_mode(synthetic_data):
         predict_mode=True,
     )
 
+    # All possible windows should be created
     total_windows = synthetic_data["num_samples"] - seq_length + 1
     assert len(dataset) == total_windows
 
     # Check item structure (should be just features)
     item = dataset[0]
-    # In predict mode, windows list contains just feature_window
+    # In predict mode, __getitem__ returns just the feature window (np.ndarray)
     assert isinstance(item, np.ndarray)
     assert item.shape == (seq_length, synthetic_data["num_features"])
 
 
 def test_getitem_dtypes(synthetic_data):
-    """Test that __getitem__ returns correct data types (torch tensors are usually handled by DataLoader, but dataset returns numpy)."""
+    """Test that __getitem__ returns correct data types (numpy arrays with float32)."""
     dataset = WetlandDataset(
         features_scaled=synthetic_data["features"],
         dates=synthetic_data["dates"],
@@ -136,12 +132,15 @@ def test_wetland_dataloader_split(synthetic_data):
     # Modify dates to span multiple years
     num_samples = synthetic_data["num_samples"]
     start_date = pd.Timestamp("2000-01-01")
-    # Make half the data 2000, half 2001
-    dates = [start_date + pd.Timedelta(days=i) for i in range(num_samples)]
-    # Force some into 2001
-    mid_point = num_samples // 2
-    for i in range(mid_point, num_samples):
-        dates[i] = dates[i].replace(year=2001)
+
+    # Create dates spanning 2000 and 2001, ensuring window indices align
+    dates = []
+    for i in range(num_samples):
+        # Samples 0-24 in 2000, 25-49 in 2001
+        if i < 25:
+            dates.append(start_date + pd.Timedelta(days=i))
+        else:
+            dates.append(start_date.replace(year=2001) + pd.Timedelta(days=i - 25))
 
     dataset = WetlandDataset(
         features_scaled=synthetic_data["features"],
@@ -162,18 +161,17 @@ def test_wetland_dataloader_split(synthetic_data):
     assert isinstance(test_loader, DataLoader)
 
     # Check that train_loader only contains data from 2000
-    # We can inspect the indices in the Subset
     train_indices = train_loader.dataset.indices
     for idx in train_indices:
-        # dataset.dates_seq aligns with windows
+        # dataset.dates_seq is the date corresponding to the target (window end)
         window_date = dataset.dates_seq[idx]
         assert window_date.year == 2000
 
-    # Check that test_loader only contains data from 2001 (not in train_years)
+    # Check that test_loader only contains data NOT in train_years (i.e., 2001)
     test_indices = test_loader.dataset.indices
     for idx in test_indices:
         window_date = dataset.dates_seq[idx]
-        assert window_date.year != 2000
+        assert window_date.year not in train_years
 
 
 def test_dataloader_batching(synthetic_data):
@@ -186,7 +184,9 @@ def test_dataloader_batching(synthetic_data):
         predict_mode=False,
     )
 
-    train_years = [2000]  # All data is 2000 in fixture default
+    # Define train_years to ensure we select a non-empty subset
+    start_year = synthetic_data["dates"][0].year
+    train_years = [start_year]
     batch_size = 10
 
     train_loader, _ = wetland_dataloader(dataset, train_years, batch_size=batch_size)
