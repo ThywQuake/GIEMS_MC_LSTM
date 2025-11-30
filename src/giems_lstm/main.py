@@ -71,7 +71,7 @@ def _init_imports():
     ).LSTMNetKAN
 
 
-def setup_global_logging(debug: bool, process_type: str):
+def _setup_global_logging(debug: bool, process_type: str):
     """
     Configures the root logger for the current process.
     - debug: If True, sets level to DEBUG. Otherwise, sets to INFO.
@@ -91,7 +91,7 @@ def setup_global_logging(debug: bool, process_type: str):
 
         # Define format including process info for distinguishing logs in parallel runs
         formatter = logging.Formatter(
-            f"[%(levelname)s] [PROC:{process_type}] [%(filename)s:%(lineno)d] - %(message)s"
+            f"[%(levelname)s] [%(asctime)s] [PROC:{process_type}] [%(filename)s:%(lineno)d] - %(message)s"
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
@@ -454,7 +454,7 @@ def _collect(config_path: str, parallel: int):
 def _uniform_entry(debug: bool, parallel: int, seed: int):
     _init_imports()
 
-    setup_global_logging(debug, "Main")
+    _setup_global_logging(debug, "Main")
     logger = logging.getLogger()
     if debug:
         logger.warning("!!! DEBUG MODE ENABLED !!!")
