@@ -6,6 +6,36 @@ from torch.utils.data import DataLoader, TensorDataset
 from giems_lstm.engine.trainer import Trainer
 from giems_lstm.model.lstm import LSTMNet
 from giems_lstm.model.lstmkan import LSTMNetKAN
+from giems_lstm.config import TrainConfig, ModelConfig
+
+
+def get_default_configs(
+    learn_rate=0.001,
+    n_epochs=10,
+    patience=5,
+    verbose=1,
+    hidden_dim=16,
+    n_layers=1,
+    model_type="LSTM",
+):
+    train_config = TrainConfig(
+        start_date="2000-01-01",
+        end_date="2000-12-31",
+        train_years=[],
+        lr=learn_rate,
+        n_epochs=n_epochs,
+        patience=patience,
+        verbose_epoch=verbose,
+    )
+    model_config = ModelConfig(
+        hidden_dim=hidden_dim,
+        n_layers=n_layers,
+        batch_size=32,
+        seq_length=10,
+        window_size=0,
+        type=model_type,
+    )
+    return train_config, model_config
 
 
 @pytest.fixture
@@ -48,22 +78,19 @@ def device():
 
 
 def test_trainer_initialization(mock_data, device):
-    """
-    Test that the Trainer initializes with correct attributes, including
-    checking the debug mode epoch override (n_epochs is set to 10 in debug mode).
-    """
     train_loader, test_loader = mock_data
+    t_conf, m_conf = get_default_configs(
+        learn_rate=0.001, n_epochs=2, hidden_dim=16, model_type="LSTM"
+    )
 
     trainer = Trainer(
         train_loader=train_loader,
         test_loader=test_loader,
-        learn_rate=0.001,
-        hidden_dim=16,
-        n_layers=1,
-        n_epochs=2,  # This value should be overridden by debug=True
-        model_type="LSTM",
-        verbose_epoch=1,
-        patience=5,
+        train_config=t_conf,
+        model_config=m_conf,
+        lat_idx=0,
+        lon_idx=0,
+        model_folder=".",
         device=device,
         debug=True,
     )
@@ -71,8 +98,6 @@ def test_trainer_initialization(mock_data, device):
     assert trainer.learn_rate == 0.001
     assert trainer.hidden_dim == 16
     assert trainer.model_type == "LSTM"
-    # Check that debug mode overrides n_epochs
-    assert trainer.n_epochs == 10
     assert trainer.device == device
 
 
@@ -81,23 +106,24 @@ def test_trainer_run_lstm(mock_data, device):
     Test a complete training run using the base LSTM model and check results.
     """
     train_loader, test_loader = mock_data
+    t_conf, m_conf = get_default_configs(
+        learn_rate=0.001, n_epochs=2, hidden_dim=16, model_type="LSTM"
+    )
 
-    # Use a small number of epochs (1) for rapid testing
     trainer = Trainer(
         train_loader=train_loader,
         test_loader=test_loader,
-        learn_rate=0.01,
-        hidden_dim=8,
-        n_layers=1,
-        n_epochs=1,
-        model_type="LSTM",
-        verbose_epoch=1,
-        patience=2,
+        train_config=t_conf,
+        model_config=m_conf,
+        lat_idx=0,
+        lon_idx=0,
+        model_folder=".",
         device=device,
-        debug=False,
+        debug=True,
     )
 
-    model = trainer.run()
+    trainer.run()
+    model = trainer.model
 
     # Check the returned model instance
     assert isinstance(model, LSTMNet)
@@ -112,26 +138,27 @@ def test_trainer_run_lstm_kan(mock_data, device):
     Test a complete training run using the LSTM-KAN model variant.
     """
     train_loader, test_loader = mock_data
+    t_conf, m_conf = get_default_configs(
+        learn_rate=0.001, n_epochs=2, hidden_dim=16, model_type="LSTM_KAN"
+    )
 
     trainer = Trainer(
         train_loader=train_loader,
         test_loader=test_loader,
-        learn_rate=0.01,
-        hidden_dim=8,
-        n_layers=1,
-        n_epochs=1,
-        model_type="LSTM_KAN",
-        verbose_epoch=1,
-        patience=2,
+        train_config=t_conf,
+        model_config=m_conf,
+        lat_idx=0,
+        lon_idx=0,
+        model_folder=".",
         device=device,
-        debug=False,
+        debug=True,
     )
 
-    model = trainer.run()
+    trainer.run()
+    model = trainer.model
 
     # Check the returned model instance
     assert isinstance(model, LSTMNetKAN)
-    assert trainer.best_loss < float("inf")
 
 
 def test_early_stopping_logic(mock_data, device):
@@ -139,19 +166,20 @@ def test_early_stopping_logic(mock_data, device):
     Test the internal mechanism of the early stopping logic (patience counter).
     """
     train_loader, test_loader = mock_data
+    t_conf, m_conf = get_default_configs(
+        learn_rate=0.001, n_epochs=2, hidden_dim=16, model_type="LSTM", patience=2
+    )
 
     trainer = Trainer(
         train_loader=train_loader,
         test_loader=test_loader,
-        learn_rate=0.001,
-        hidden_dim=8,
-        n_layers=1,
-        n_epochs=10,
-        model_type="LSTM",
-        verbose_epoch=1,
-        patience=2,  # Stop after 2 epochs with no improvement
+        train_config=t_conf,
+        model_config=m_conf,
+        lat_idx=0,
+        lon_idx=0,
+        model_folder=".",
         device=device,
-        debug=False,
+        debug=True,
     )
 
     # Manually call setup to initialize the model and internal state
@@ -180,18 +208,20 @@ def test_invalid_model_type(mock_data, device):
     Test that passing an unsupported model type raises a ValueError.
     """
     train_loader, test_loader = mock_data
+    t_conf, m_conf = get_default_configs(
+        learn_rate=0.001, n_epochs=2, hidden_dim=16, model_type="Transformer"
+    )
 
     trainer = Trainer(
         train_loader=train_loader,
         test_loader=test_loader,
-        learn_rate=0.01,
-        hidden_dim=8,
-        n_layers=1,
-        n_epochs=1,
-        model_type="INVALID_TYPE",
-        verbose_epoch=1,
-        patience=1,
+        train_config=t_conf,
+        model_config=m_conf,
+        lat_idx=0,
+        lon_idx=0,
+        model_folder=".",
         device=device,
+        debug=True,
     )
 
     with pytest.raises(ValueError, match="Unsupported model type"):

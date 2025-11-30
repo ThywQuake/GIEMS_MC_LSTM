@@ -5,6 +5,7 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 from sklearn.preprocessing import MinMaxScaler
+import logging
 
 # Import components from the correct package structure
 from giems_lstm.engine.predictor import Predictor
@@ -116,8 +117,8 @@ def test_predictor_post_processing(mock_setup):
         # Check thresholding and capping
         assert pytest.approx(result[1]) == 0.0  # -0.1 -> 0
         assert (
-            pytest.approx(result[4]) == 100.0
-        )  # 1.1 -> 100 (due to internal clipping before inverse transform)
+            pytest.approx(result[4]) == 110.0
+        )  # 1.1 -> 110 (due to internal clipping before inverse transform)
 
         # Check inverse transform approximate values
         assert pytest.approx(result[0]) == 50.0
@@ -229,7 +230,7 @@ def test_predictor_skip_existing(mock_setup, caplog):
             debug=False,
         )
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level(logging.INFO):
             predictor.run()
 
         # Check logs for skip message

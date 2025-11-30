@@ -177,15 +177,18 @@ def test_entry_point_logic_with_parallel_check():
 
     with (
         # 2. Patch the global variables *before* the function runs
-        # Use patch.object to temporarily replace attributes in the main module
-        patch.object(main_module, "torch", mock_torch),
-        patch.object(main_module, "_setup_global_logging", mock_logging_util),
-        patch.object(main_module, "_seed_everything", mock_seed_util),
+        # FIX: 添加 create=True，因为 main 模块在初始时没有 torch 属性
+        patch.object(main_module, "torch", mock_torch, create=True),
+        patch.object(
+            main_module, "_setup_global_logging", mock_logging_util, create=True
+        ),
+        patch.object(main_module, "_seed_everything", mock_seed_util, create=True),
         # 3. Patch _init_imports to prevent it from overwriting our mocks with real imports
         patch.object(main_module, "_init_imports", MagicMock()),
         # 4. Patch system calls
         patch("multiprocessing.cpu_count", return_value=8),
     ):
+        # ... (后续代码保持不变)
         # Case 1: parallel=0 (Standard single process)
         _uniform_entry(debug=False, parallel=0, seed=123)
         mock_logging_util.assert_called_with(False, "Main")
@@ -198,9 +201,7 @@ def test_entry_point_logic_with_parallel_check():
         mock_torch.set_num_threads.reset_mock()
 
         # Case 2: parallel=4 (Parallel mode enabled)
-        # Logic: num_workers = cpu_count // parallel = 8 // 4 = 2
         _uniform_entry(debug=True, parallel=4, seed=456)
         mock_logging_util.assert_called_with(True, "Main")
         mock_seed_util.assert_called_with(456)
-        # Assert that the mocked torch method was called with the calculated workers
         mock_torch.set_num_threads.assert_called_with(2)

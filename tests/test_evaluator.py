@@ -106,7 +106,6 @@ def test_evaluator_inference_and_saving(mock_setup):
             train_dataloader=dataloader,
             test_dataloader=dataloader,
             eval_folder=eval_folder,
-            model_folder=model_folder,
             target_scaler=scaler,
             device=device,
             debug=True,  # Enable debug mode
@@ -164,7 +163,6 @@ def test_evaluator_skips_if_exists(mock_setup, caplog):
             train_dataloader=dataloader,
             test_dataloader=dataloader,
             eval_folder=eval_folder,
-            model_folder=model_folder,
             target_scaler=scaler,
             device=device,
             debug=False,  # debug=False enables the check
@@ -176,37 +174,3 @@ def test_evaluator_skips_if_exists(mock_setup, caplog):
 
         # Check logs for skip message
         assert "already exists" in caplog.text
-
-
-def test_evaluator_missing_model(mock_setup, caplog):
-    """
-    Test that the evaluator handles the case where the model checkpoint is missing.
-    """
-    model, dataloader, scaler, device = mock_setup
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        eval_folder = os.path.join(tmp_dir, "eval")
-        model_folder = os.path.join(tmp_dir, "models")
-        # model_folder is created but intentionally left empty, so the .pth file is missing
-
-        evaluator = Evaluator(
-            model=model,
-            lat_idx=2,
-            lon_idx=2,
-            train_dataloader=dataloader,
-            test_dataloader=dataloader,
-            eval_folder=eval_folder,
-            model_folder=model_folder,
-            target_scaler=scaler,
-            device=device,
-            debug=False,
-        )
-
-        with caplog.at_level("WARNING"):
-            evaluator.run()
-
-        # Check logs for warning message
-        assert "not found" in caplog.text
-        # Result file should NOT be created
-        result_file = os.path.join(eval_folder, "2_2.npy")
-        assert not os.path.exists(result_file)
