@@ -118,7 +118,3 @@ giems collect -c config/E.toml
 If you encounter any issues during usage or are interested in collaboration, please contact:
 
 📧 **Email**: [thywquake@foxmail.com](mailto:thywquake@foxmail.com)
-
------
-
-Would you like me to clarify any specific section, or perhaps help draft an email based on this contact information?
