@@ -116,6 +116,8 @@ class Collector:
                     self._collect_eval_single(file_path)
                 else:
                     self._collect_pred_single(file_path)
+
+                self.logger.debug(f"Processed {file_path.name}")
             except Exception as e:
                 self.logger.error(f"Error processing {file_path}: {e}")
 

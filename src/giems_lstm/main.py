@@ -16,7 +16,7 @@ if TYPE_CHECKING:
         _collect,
     )
 
-
+# TODO: Remove threading argument and use atomic file creation as thread lock
 app = typer.Typer(help="GIEMS-LSTM Training and Prediction CLI")
 
 

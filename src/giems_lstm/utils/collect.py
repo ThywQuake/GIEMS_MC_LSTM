@@ -20,7 +20,7 @@ def _collect(config_path: str, eval: bool, parallel: int):
             try:
                 collector.run(batch)
                 total_loaded += len(batch)
-                logger.debug(f"Loaded {total_loaded}/{config.total_tasks} files...")
+                logger.info(f"Loaded {total_loaded}/{config.total_tasks} files...")
             except Exception as e:
                 logger.error(f"Error loading batch: {e}")
     else:
@@ -33,7 +33,7 @@ def _collect(config_path: str, eval: bool, parallel: int):
                 try:
                     future.result()
                     total_loaded += len(future_to_batch[future])
-                    logger.debug(f"Loaded {total_loaded}/{config.total_tasks} files...")
+                    logger.info(f"Loaded {total_loaded}/{config.total_tasks} files...")
                 except Exception as e:
                     logger.error(f"Error loading batch: {e}")
 
